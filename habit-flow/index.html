@@ -3,12 +3,12 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-  <meta name="theme-color" content="#090d16">
+  <meta name="theme-color" content="#0b101b">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="HabitFlow">
   <link rel="manifest" href="manifest.json">
-  <title>HabitFlow Mobile — Hábitos, Agenda & Horários</title>
+  <title>HabitFlow Mobile — Hábitos, Calendário & Horários</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600;700&display=swap" rel="stylesheet">
@@ -19,7 +19,7 @@
   <div class="desktop-preview-bar">
     <div class="preview-bar-left">
       <span class="preview-dot"></span>
-      <span><strong>HabitFlow Mobile App</strong> — 4 Homes Independentes (PWA Instalável)</span>
+      <span><strong>HabitFlow Mobile App</strong> — 4 Homes Independentes</span>
     </div>
     <div class="preview-bar-actions">
       <button class="preview-btn" id="btnToggleFrame" title="Alternar moldura de celular ou tela expandida">
@@ -33,7 +33,7 @@
 
   <!-- Smartphone Device Container -->
   <div class="phone-frame" id="phoneFrame">
-    <!-- Simulated iOS/Android Status Bar -->
+    <!-- Simulated iOS/Android Status Bar (Desktop Preview Only) -->
     <div class="status-bar">
       <span class="status-time" id="statusBarClock">09:41</span>
       <div class="dynamic-island" aria-hidden="true"></div>
@@ -43,17 +43,18 @@
       </div>
     </div>
 
-    <!-- Mobile App Top Header -->
+    <!-- Mobile App Top Header (Fixed formatting so date and + button never overflow) -->
     <header class="mobile-header">
-      <div>
-        <p class="header-date" id="currentDateDisplay">Carregando...</p>
+      <div class="header-text-wrap">
+        <span class="header-date-pill" id="currentDateDisplay">Carregando...</span>
         <h1 class="header-title" id="screenHeaderTitle">Hábitos para Começar</h1>
       </div>
-      <button class="header-icon-btn" id="btnQuickActionTop" title="Novo Registro">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4">
+      <button class="header-add-btn" id="btnQuickActionTop" type="button" aria-label="Adicionar">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6">
           <line x1="12" y1="5" x2="12" y2="19"></line>
           <line x1="5" y1="12" x2="19" y2="12"></line>
         </svg>
+        <span>Novo</span>
       </button>
     </header>
 
@@ -64,13 +65,12 @@
            HOME 1: HÁBITOS PARA COMEÇAR (Modo Constância)
            ========================================================= -->
       <section class="app-screen active" id="screen-start" data-screen="start">
-        <!-- Hero Summary Card -->
         <div class="hero-card hero-start">
           <div class="hero-top">
-            <div>
+            <div class="hero-info">
               <span class="hero-tag">MODO CONSTÂNCIA</span>
               <h2 id="startHeroStat">0 de 0 concluídos hoje</h2>
-              <p class="hero-sub">Faça o check-in diário para manter sua chama acesa</p>
+              <p class="hero-sub">Faça o check-in diário para aumentar sua sequência</p>
             </div>
             <div class="hero-ring" id="startHeroPct">0%</div>
           </div>
@@ -81,7 +81,7 @@
 
         <div class="section-bar">
           <h3>Meus Hábitos em Construção</h3>
-          <button class="btn-chip btn-chip-start" onclick="openNewHabitModal('start')">+ Novo Hábito</button>
+          <button class="btn-chip btn-chip-start" type="button" onclick="openNewHabitModal('start')">+ Hábito</button>
         </div>
 
         <div class="cards-stack" id="startHabitsList"></div>
@@ -91,10 +91,9 @@
            HOME 2: HÁBITOS PARA DEIXAR (Modo Abstinência)
            ========================================================= -->
       <section class="app-screen" id="screen-stop" data-screen="stop">
-        <!-- Hero Summary Card -->
         <div class="hero-card hero-stop">
           <div class="hero-top">
-            <div>
+            <div class="hero-info">
               <span class="hero-tag">MODO ABSTINÊNCIA</span>
               <h2 id="stopHeroStat">0 hábitos monitorados</h2>
               <p class="hero-sub">Contagem progressiva em tempo real baseada no relógio</p>
@@ -115,51 +114,96 @@
 
         <div class="section-bar">
           <h3>Contadores de Abstinência</h3>
-          <button class="btn-chip btn-chip-stop" onclick="openNewHabitModal('stop')">+ Parar Hábito</button>
+          <button class="btn-chip btn-chip-stop" type="button" onclick="openNewHabitModal('stop')">+ Parar Hábito</button>
         </div>
 
         <div class="cards-stack" id="stopHabitsList"></div>
       </section>
 
       <!-- =========================================================
-           HOME 3: AGENDA DO DIA (Tarefas & Hábitos Vinculados)
+           HOME 3: AGENDA (CALENDÁRIO MENSAL & SEMANAL)
            ========================================================= -->
       <section class="app-screen" id="screen-agenda" data-screen="agenda">
-        <!-- Hero Summary Card -->
-        <div class="hero-card hero-agenda">
-          <div class="hero-top">
-            <div>
-              <span class="hero-tag">AGENDA DE HOJE</span>
-              <h2 id="agendaHeroStat">0 de 0 concluídos</h2>
-              <p class="hero-sub">Concluir um hábito aqui atualiza seu streak automaticamente</p>
+        <!-- Calendar View Mode Switcher (Mês vs Semana) -->
+        <div class="calendar-card">
+          <div class="calendar-top-bar">
+            <div class="cal-nav-group">
+              <button type="button" class="cal-nav-btn" id="btnCalPrev" aria-label="Anterior">‹</button>
+              <h2 class="cal-title" id="calendarTitleLabel">Novembro 2026</h2>
+              <button type="button" class="cal-nav-btn" id="btnCalNext" aria-label="Próximo">›</button>
             </div>
-            <div class="hero-ring hero-ring-blue" id="agendaHeroPct">0%</div>
+
+            <div class="cal-mode-switch">
+              <button type="button" class="cal-mode-btn active" data-calmode="month">Mês</button>
+              <button type="button" class="cal-mode-btn" data-calmode="week">Semana</button>
+              <button type="button" class="cal-today-btn" id="btnCalToday">Hoje</button>
+            </div>
           </div>
-          <div class="hero-progress-bar">
-            <div class="hero-progress-fill fill-blue" id="agendaHeroFill" style="width: 0%"></div>
+
+          <!-- Weekday Headers (Dom - Sáb) -->
+          <div class="calendar-weekdays">
+            <span>Dom</span>
+            <span>Seg</span>
+            <span>Ter</span>
+            <span>Qua</span>
+            <span>Qui</span>
+            <span>Sex</span>
+            <span>Sáb</span>
+          </div>
+
+          <!-- Days Grid (Month or Week dynamically rendered) -->
+          <div class="calendar-grid" id="calendarGrid"></div>
+
+          <!-- Calendar Legend -->
+          <div class="calendar-legend">
+            <span class="legend-item"><i class="dot dot-task"></i> Compromisso</span>
+            <span class="legend-item"><i class="dot dot-habit"></i> Hábito agendado</span>
+            <span class="legend-item"><i class="dot dot-done"></i> Concluído</span>
           </div>
         </div>
 
-        <!-- Quick Filter Pills -->
-        <div class="agenda-filter-bar">
-          <button class="filter-chip active" data-agfilter="all">Todos</button>
-          <button class="filter-chip" data-agfilter="pending">Pendentes</button>
-          <button class="filter-chip" data-agfilter="completed">Concluídos</button>
-          <button class="filter-chip" data-agfilter="habits">Só Hábitos</button>
+        <!-- Selected Day Details & Week Overview -->
+        <div class="selected-day-banner">
+          <div class="selected-day-info">
+            <span class="selected-day-tag" id="selectedDayRelativeTag">DIA SELECIONADO</span>
+            <h3 id="selectedDayTitle">Terça, 10 de Novembro</h3>
+          </div>
+          <div class="selected-day-actions">
+            <button type="button" class="btn-chip btn-chip-blue" onclick="openScheduleModal(null, state.selectedDateKey)">
+              + Agendar
+            </button>
+            <button type="button" class="btn-chip btn-chip-outline" onclick="switchScreen('hours')">
+              🕒 Ver Horários
+            </button>
+          </div>
         </div>
 
-        <div class="section-bar">
-          <h3>Itens Agendados Hoje</h3>
-          <button class="btn-chip btn-chip-blue" onclick="openScheduleModal()">+ Agendar Item</button>
-        </div>
+        <!-- Commitments of Selected Date -->
+        <div class="cards-stack" id="agendaDayItemsList"></div>
 
-        <div class="cards-stack" id="agendaItemsList"></div>
+        <!-- Upcoming Week Summary Section -->
+        <div class="section-bar" style="margin-top: 20px;">
+          <h3>Resumo da Semana</h3>
+          <span class="sub-badge" id="weekSummaryRange">7 dias</span>
+        </div>
+        <div class="week-summary-list" id="weekSummaryContainer"></div>
       </section>
 
       <!-- =========================================================
-           HOME 4: HORÁRIOS (Time-blocking 06:00 às 23:00)
+           HOME 4: HORÁRIOS (Time-blocking do Dia 06:00 às 23:00)
            ========================================================= -->
       <section class="app-screen" id="screen-hours" data-screen="hours">
+        <!-- Day Selector Banner inside Horários -->
+        <div class="hours-day-bar">
+          <button type="button" class="cal-nav-btn" id="btnHoursPrevDay" aria-label="Dia anterior">‹</button>
+          <div class="hours-day-center">
+            <span class="hours-day-badge" id="hoursDayBadge">HOJE</span>
+            <strong id="hoursDayLabel">10 de Novembro</strong>
+          </div>
+          <button type="button" class="cal-nav-btn" id="btnHoursNextDay" aria-label="Próximo dia">›</button>
+          <button type="button" class="cal-today-btn" id="btnHoursToday">Hoje</button>
+        </div>
+
         <!-- Period Selector -->
         <div class="period-tabs">
           <button class="period-tab active" data-period="all">06h–23h</button>
@@ -168,28 +212,16 @@
           <button class="period-tab" data-period="night">🌙 Noite</button>
         </div>
 
-        <p class="hours-helper-tip">
-          Toque em qualquer horário livre ou no botão <strong>+</strong> para alocar uma tarefa ou hábito naquele bloco.
-        </p>
-
         <div class="timeline-mobile" id="timelineContainer"></div>
       </section>
 
     </main>
 
-    <!-- Floating Action Button (FAB) -->
-    <button class="fab-btn" id="fabMainAction" aria-label="Adicionar">
-      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6">
-        <line x1="12" y1="5" x2="12" y2="19"></line>
-        <line x1="5" y1="12" x2="19" y2="12"></line>
-      </svg>
-    </button>
-
     <!-- Bottom Navigation Bar (4 Homes) -->
     <nav class="bottom-nav" aria-label="Navegação Principal">
-      <button class="nav-item active" data-target="start">
+      <button class="nav-item active" data-target="start" type="button">
         <div class="nav-icon-wrap">
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round">
+          <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round">
             <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>
           </svg>
           <span class="nav-badge" id="navBadgeStart">0</span>
@@ -197,9 +229,9 @@
         <span class="nav-label">Começar</span>
       </button>
 
-      <button class="nav-item" data-target="stop">
+      <button class="nav-item" data-target="stop" type="button">
         <div class="nav-icon-wrap">
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round">
+          <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round">
             <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
           </svg>
           <span class="nav-badge badge-orange" id="navBadgeStop">0</span>
@@ -207,20 +239,22 @@
         <span class="nav-label">Deixar</span>
       </button>
 
-      <button class="nav-item" data-target="agenda">
+      <button class="nav-item" data-target="agenda" type="button">
         <div class="nav-icon-wrap">
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M9 11l3 3L22 4"/>
-            <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>
+          <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+            <line x1="16" y1="2" x2="16" y2="6"/>
+            <line x1="8" y1="2" x2="8" y2="6"/>
+            <line x1="3" y1="10" x2="21" y2="10"/>
           </svg>
           <span class="nav-badge badge-blue" id="navBadgeAgenda">0</span>
         </div>
         <span class="nav-label">Agenda</span>
       </button>
 
-      <button class="nav-item" data-target="hours">
+      <button class="nav-item" data-target="hours" type="button">
         <div class="nav-icon-wrap">
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round">
+          <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round">
             <circle cx="12" cy="12" r="10"/>
             <polyline points="12 6 12 12 16 14"/>
           </svg>
@@ -237,7 +271,7 @@
         <div class="sheet-handle"></div>
         <div class="sheet-header">
           <h3 id="modalTitle">Novo Hábito</h3>
-          <button class="icon-btn" id="btnCloseHabitModal" aria-label="Fechar">✕</button>
+          <button class="icon-btn" id="btnCloseHabitModal" type="button" aria-label="Fechar">✕</button>
         </div>
 
         <form id="habitForm">
@@ -283,7 +317,7 @@
           <div class="form-field" id="autoScheduleField">
             <label class="checkbox-label">
               <input type="checkbox" id="habitAutoSchedule" checked>
-              <span>Incluir automaticamente na Agenda e Horários de hoje</span>
+              <span>Agendar automaticamente no horário sugerido de hoje</span>
             </label>
           </div>
 
@@ -296,30 +330,36 @@
     </div>
 
     <!-- =========================================================
-         BOTTOM SHEET 2: AGENDAR TAREFA OU HÁBITO NO HORÁRIO
+         BOTTOM SHEET 2: AGENDAR COMPROMISSO OU HÁBITO
          ========================================================= -->
     <div class="sheet-backdrop hidden" id="scheduleModal" role="dialog" aria-modal="true">
       <div class="bottom-sheet">
         <div class="sheet-handle"></div>
         <div class="sheet-header">
-          <h3 id="scheduleModalTitle">Agendar na Rotina</h3>
-          <button class="icon-btn" id="btnCloseScheduleModal" aria-label="Fechar">✕</button>
+          <h3 id="scheduleModalTitle">Novo Compromisso</h3>
+          <button class="icon-btn" id="btnCloseScheduleModal" type="button" aria-label="Fechar">✕</button>
         </div>
 
         <form id="scheduleForm">
-          <div class="form-field">
-            <label for="agendaTime">Horário do Dia (06:00 – 23:00)</label>
-            <select id="agendaTime" required></select>
+          <div class="form-row-2col">
+            <div class="form-field">
+              <label for="agendaDateInput">Data *</label>
+              <input type="date" id="agendaDateInput" required>
+            </div>
+            <div class="form-field">
+              <label for="agendaTime">Horário *</label>
+              <select id="agendaTime" required></select>
+            </div>
           </div>
 
           <div class="form-field">
-            <label>O que deseja alocar neste horário?</label>
+            <label>Tipo de Item</label>
             <div class="category-selector">
               <label class="category-option">
                 <input type="radio" name="agendaItemType" value="task" checked>
                 <div class="category-box box-blue">
-                  <span class="cat-title">📌 Tarefa Avulsa</span>
-                  <span class="cat-sub">Compromisso do dia</span>
+                  <span class="cat-title">📌 Compromisso</span>
+                  <span class="cat-sub">Tarefa / Evento</span>
                 </div>
               </label>
               <label class="category-option">
@@ -333,8 +373,8 @@
           </div>
 
           <div class="form-field" id="taskTitleGroup">
-            <label for="agendaTaskTitle">Descrição da Tarefa *</label>
-            <input type="text" id="agendaTaskTitle" placeholder="Ex: Reunião, Estudar inglês, Ir ao mercado..." maxlength="80">
+            <label for="agendaTaskTitle">Descrição do Compromisso *</label>
+            <input type="text" id="agendaTaskTitle" placeholder="Ex: Consulta médica, Reunião, Estudar..." maxlength="80">
           </div>
 
           <div class="form-field hidden" id="habitSelectGroup">
@@ -344,7 +384,7 @@
 
           <div class="sheet-actions">
             <button type="button" class="btn btn-secondary" id="btnCancelScheduleModal">Cancelar</button>
-            <button type="submit" class="btn btn-accent">Confirmar Agendamento</button>
+            <button type="submit" class="btn btn-accent">Agendar</button>
           </div>
         </form>
       </div>
@@ -367,7 +407,7 @@
       </div>
     </div>
 
-    <!-- Toast Notification inside phone -->
+    <!-- Toast Notification -->
     <div id="toastContainer" class="toast-container" aria-live="polite"></div>
   </div>
 

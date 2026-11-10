@@ -1,14 +1,14 @@
 /**
- * HabitFlow Mobile — App com 4 Homes Independentes:
+ * HabitFlow Mobile — 4 Homes:
  * 1. Começar (Modo Constância)
  * 2. Deixar (Modo Abstinência)
- * 3. Agenda (Lista do Dia & Filtros)
- * 4. Horários (Time-blocking 06:00 às 23:00)
+ * 3. Agenda (Calendário Mensal & Semanal com visão da Semana/Mês)
+ * 4. Horários (Time-blocking hora a hora 06:00 às 23:00 do dia selecionado)
  */
 
 const STORAGE_KEYS = {
-  HABITS: 'habitflow_habits_v1',
-  AGENDA: 'habitflow_agenda_v1'
+  HABITS: 'habitflow_habits_v2',
+  AGENDA: 'habitflow_agenda_v2'
 };
 
 const MILESTONES = [7, 21, 30, 90];
@@ -20,42 +20,75 @@ const HOURS_RANGE = Array.from({ length: 18 }, (_, i) => {
 const SCREEN_TITLES = {
   start: 'Hábitos para Começar',
   stop: 'Hábitos para Deixar',
-  agenda: 'Agenda de Hoje',
-  hours: 'Horários (06h – 23h)'
+  agenda: 'Calendário & Agenda',
+  hours: 'Horários do Dia'
 };
 
 let state = {
   activeScreen: 'start', // 'start' | 'stop' | 'agenda' | 'hours'
   habits: [],
-  agenda: [],
-  agendaFilter: 'all', // 'all' | 'pending' | 'completed' | 'habits'
+  agenda: [], // [{ id, dateKey, time, type: 'task' | 'habit', title, habitId, completed }]
+  calendarMode: 'month', // 'month' | 'week'
+  selectedDateKey: '', // YYYY-MM-DD
+  calendarCursorDate: new Date(), // Date object for month/week navigation
   hoursPeriod: 'all', // 'all' | 'morning' | 'afternoon' | 'night'
   pendingRelapseHabitId: null
 };
 
 // ==========================================
-// UTILITÁRIOS DE DATA E TEMPO
+// UTILITÁRIOS DE DATA E CALENDÁRIO
 // ==========================================
 
-function getTodayKey(dateObj = new Date()) {
+function getDateKey(dateObj = new Date()) {
   const year = dateObj.getFullYear();
   const month = String(dateObj.getMonth() + 1).padStart(2, '0');
   const day = String(dateObj.getDate()).padStart(2, '0');
   return `${year}-${month}-${day}`;
 }
 
+function getTodayKey() {
+  return getDateKey(new Date());
+}
+
+function parseDateKey(dateKey) {
+  const [y, m, d] = String(dateKey).split('-').map(Number);
+  return new Date(y, (m || 1) - 1, d || 1, 12, 0, 0);
+}
+
+function shiftDateKey(dateKey, deltaDays) {
+  const d = parseDateKey(dateKey);
+  d.setDate(d.getDate() + deltaDays);
+  return getDateKey(d);
+}
+
 function getYesterdayKey() {
-  const d = new Date();
-  d.setDate(d.getDate() - 1);
-  return getTodayKey(d);
+  return shiftDateKey(getTodayKey(), -1);
 }
 
 function formatShortHeaderDate(dateObj = new Date()) {
   return dateObj.toLocaleDateString('pt-BR', {
-    weekday: 'long',
+    weekday: 'short',
     day: '2-digit',
     month: 'short'
+  }).replace('.', '');
+}
+
+function formatDayFullLabel(dateKey) {
+  const d = parseDateKey(dateKey);
+  return d.toLocaleDateString('pt-BR', {
+    weekday: 'long',
+    day: '2-digit',
+    month: 'long'
   });
+}
+
+function getRelativeDayTag(dateKey) {
+  const today = getTodayKey();
+  if (dateKey === today) return 'HOJE';
+  if (dateKey === shiftDateKey(today, 1)) return 'AMANHÃ';
+  if (dateKey === shiftDateKey(today, -1)) return 'ONTEM';
+  const d = parseDateKey(dateKey);
+  return d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
 }
 
 function updateStatusBarClock() {
@@ -99,7 +132,7 @@ function computeBuildStreak(completedDates = []) {
   }
 
   while (true) {
-    const key = getTodayKey(cursor);
+    const key = getDateKey(cursor);
     if (set.has(key)) {
       streak++;
       cursor.setDate(cursor.getDate() - 1);
@@ -120,11 +153,14 @@ function createDemoData() {
   const hourMs = 60 * 60 * 1000;
 
   const today = getTodayKey();
-  const d1 = getTodayKey(new Date(now - 1 * dayMs));
-  const d2 = getTodayKey(new Date(now - 2 * dayMs));
-  const d3 = getTodayKey(new Date(now - 3 * dayMs));
-  const d4 = getTodayKey(new Date(now - 4 * dayMs));
-  const d5 = getTodayKey(new Date(now - 5 * dayMs));
+  const dMinus1 = shiftDateKey(today, -1);
+  const dMinus2 = shiftDateKey(today, -2);
+  const dMinus3 = shiftDateKey(today, -3);
+  const dMinus4 = shiftDateKey(today, -4);
+  const dMinus5 = shiftDateKey(today, -5);
+  const dPlus1 = shiftDateKey(today, 1);
+  const dPlus2 = shiftDateKey(today, 2);
+  const dPlus4 = shiftDateKey(today, 4);
 
   state.habits = [
     {
@@ -132,7 +168,7 @@ function createDemoData() {
       name: 'Leitura Focada (20 páginas)',
       category: 'start',
       suggestedTime: '07:00',
-      completedDates: [d5, d4, d3, d2, d1, today],
+      completedDates: [dMinus5, dMinus4, dMinus3, dMinus2, dMinus1, today],
       bestStreak: 6,
       createdAt: now - 10 * dayMs
     },
@@ -141,7 +177,7 @@ function createDemoData() {
       name: 'Meditação Mindfulness (10 min)',
       category: 'start',
       suggestedTime: '08:00',
-      completedDates: [d2, d1, today],
+      completedDates: [dMinus2, dMinus1, today],
       bestStreak: 8,
       createdAt: now - 15 * dayMs
     },
@@ -150,7 +186,7 @@ function createDemoData() {
       name: 'Treino de Força & Mobilidade',
       category: 'start',
       suggestedTime: '18:00',
-      completedDates: [d3, d2, d1],
+      completedDates: [dMinus3, dMinus2, dMinus1],
       bestStreak: 12,
       createdAt: now - 25 * dayMs
     },
@@ -177,50 +213,90 @@ function createDemoData() {
   ];
 
   state.agenda = [
+    // Hoje
     {
       id: 'ag_1',
+      dateKey: today,
       time: '07:00',
       type: 'habit',
       habitId: 'hab_start_1',
       title: 'Leitura Focada (20 páginas)',
-      completed: true,
-      dateKey: today
+      completed: true
     },
     {
       id: 'ag_2',
+      dateKey: today,
       time: '08:00',
       type: 'habit',
       habitId: 'hab_start_2',
       title: 'Meditação Mindfulness (10 min)',
-      completed: true,
-      dateKey: today
+      completed: true
     },
     {
       id: 'ag_3',
+      dateKey: today,
       time: '10:00',
       type: 'task',
       habitId: null,
-      title: 'Deep Work: Planejamento do projeto',
-      completed: false,
-      dateKey: today
+      title: 'Reunião de alinhamento semanal',
+      completed: false
     },
     {
       id: 'ag_4',
+      dateKey: today,
       time: '15:00',
       type: 'task',
       habitId: null,
-      title: 'Revisar pendências e responder mensagens',
-      completed: false,
-      dateKey: today
+      title: 'Revisar metas e organizar entregas',
+      completed: false
     },
     {
       id: 'ag_5',
+      dateKey: today,
       time: '18:00',
       type: 'habit',
       habitId: 'hab_start_3',
       title: 'Treino de Força & Mobilidade',
-      completed: false,
-      dateKey: today
+      completed: false
+    },
+    // Amanhã
+    {
+      id: 'ag_6',
+      dateKey: dPlus1,
+      time: '09:00',
+      type: 'task',
+      habitId: null,
+      title: 'Consulta médica / Check-up',
+      completed: false
+    },
+    {
+      id: 'ag_7',
+      dateKey: dPlus1,
+      time: '18:00',
+      type: 'habit',
+      habitId: 'hab_start_3',
+      title: 'Treino de Força & Mobilidade',
+      completed: false
+    },
+    // Daqui a 2 dias
+    {
+      id: 'ag_8',
+      dateKey: dPlus2,
+      time: '14:00',
+      type: 'task',
+      habitId: null,
+      title: 'Apresentação de resultados do mês',
+      completed: false
+    },
+    // Daqui a 4 dias
+    {
+      id: 'ag_9',
+      dateKey: dPlus4,
+      time: '11:00',
+      type: 'task',
+      habitId: null,
+      title: 'Planejamento financeiro mensal',
+      completed: false
     }
   ];
 
@@ -228,6 +304,9 @@ function createDemoData() {
 }
 
 function loadState() {
+  state.selectedDateKey = getTodayKey();
+  state.calendarCursorDate = new Date();
+
   try {
     const rawHabits = localStorage.getItem(STORAGE_KEYS.HABITS);
     const rawAgenda = localStorage.getItem(STORAGE_KEYS.AGENDA);
@@ -237,6 +316,11 @@ function loadState() {
     }
     state.habits = rawHabits ? JSON.parse(rawHabits) : [];
     state.agenda = rawAgenda ? JSON.parse(rawAgenda) : [];
+    // Garantir que todo item da agenda tenha dateKey
+    const today = getTodayKey();
+    state.agenda.forEach(item => {
+      if (!item.dateKey) item.dateKey = today;
+    });
     syncAgendaWithHabits();
   } catch (e) {
     createDemoData();
@@ -249,13 +333,13 @@ function saveState() {
 }
 
 function syncAgendaWithHabits() {
-  const today = getTodayKey();
   state.agenda.forEach(item => {
     if (item.type === 'habit' && item.habitId) {
       const habit = state.habits.find(h => h.id === item.habitId);
       if (habit && habit.category === 'start') {
         item.title = habit.name;
-        item.completed = Array.isArray(habit.completedDates) && habit.completedDates.includes(today);
+        const targetDate = item.dateKey || getTodayKey();
+        item.completed = Array.isArray(habit.completedDates) && habit.completedDates.includes(targetDate);
       }
     }
   });
@@ -278,13 +362,20 @@ function switchScreen(screenKey) {
 
   document.getElementById('screenHeaderTitle').textContent = SCREEN_TITLES[screenKey] || 'HabitFlow';
   document.getElementById('mobileViewport').scrollTop = 0;
+  renderAll();
+}
+
+function selectCalendarDate(dateKey) {
+  state.selectedDateKey = dateKey;
+  state.calendarCursorDate = parseDateKey(dateKey);
+  renderAll();
 }
 
 // ==========================================
 // AÇÕES DE HÁBITOS E AGENDA
 // ==========================================
 
-function toggleStartHabitToday(habitId) {
+function toggleStartHabitOnDate(habitId, dateKey = getTodayKey()) {
   const habit = state.habits.find(h => h.id === habitId);
   if (!habit || habit.category !== 'start') return;
 
@@ -292,12 +383,11 @@ function toggleStartHabitToday(habitId) {
     habit.completedDates = [];
   }
 
-  const today = getTodayKey();
-  const idx = habit.completedDates.indexOf(today);
+  const idx = habit.completedDates.indexOf(dateKey);
   let nowChecked = false;
 
   if (idx === -1) {
-    habit.completedDates.push(today);
+    habit.completedDates.push(dateKey);
     nowChecked = true;
   } else {
     habit.completedDates.splice(idx, 1);
@@ -310,7 +400,7 @@ function toggleStartHabitToday(habitId) {
   }
 
   state.agenda.forEach(item => {
-    if (item.type === 'habit' && item.habitId === habitId) {
+    if (item.type === 'habit' && item.habitId === habitId && item.dateKey === dateKey) {
       item.completed = nowChecked;
     }
   });
@@ -319,8 +409,8 @@ function toggleStartHabitToday(habitId) {
   renderAll();
 
   showToast(nowChecked
-    ? `🔥 Check-in feito: "${habit.name}"!`
-    : `Check-in de hoje removido em "${habit.name}".`
+    ? `🔥 Hábito concluído: "${habit.name}"!`
+    : `Check-in desfeito em "${habit.name}".`
   );
 }
 
@@ -334,7 +424,7 @@ function openRelapseModal(habitId) {
 
   document.getElementById('relapseModalText').innerHTML = `
     Você está há <strong>${days} dias e ${hours}h</strong> sem praticar <strong>"${escapeHtml(habit.name)}"</strong>.<br><br>
-    Ao confirmar, o contador será zerado para <strong>0d 0h</strong> e seu recorde de <strong>${currentRecord} dias</strong> ficará salvo.
+    Ao confirmar, o contador voltará para <strong>0d 0h</strong> e seu recorde de <strong>${currentRecord} dias</strong> ficará salvo.
   `;
 
   document.getElementById('relapseModal').classList.remove('hidden');
@@ -371,35 +461,36 @@ function deleteHabit(habitId) {
   showToast(`Hábito "${habit.name}" removido.`);
 }
 
-function addAgendaItem({ time, type, title, habitId }) {
-  const today = getTodayKey();
+function addAgendaItem({ dateKey, time, type, title, habitId }) {
+  const targetDate = dateKey || state.selectedDateKey || getTodayKey();
 
   if (type === 'habit') {
     const habit = state.habits.find(h => h.id === habitId);
     if (!habit) {
-      showToast('Crie ou selecione um hábito válido.');
+      showToast('Selecione um hábito válido.');
       return false;
     }
 
     const exists = state.agenda.some(
-      a => a.time === time && a.type === 'habit' && a.habitId === habit.id
+      a => a.dateKey === targetDate && a.time === time && a.type === 'habit' && a.habitId === habit.id
     );
     if (exists) {
-      showToast(`"${habit.name}" já está agendado às ${time}.`);
+      showToast(`"${habit.name}" já está agendado às ${time} nesta data.`);
       return false;
     }
 
-    const doneToday = Array.isArray(habit.completedDates) && habit.completedDates.includes(today);
+    const isDone = Array.isArray(habit.completedDates) && habit.completedDates.includes(targetDate);
     state.agenda.push({
       id: 'ag_' + Date.now() + '_' + Math.random().toString(36).slice(2, 5),
+      dateKey: targetDate,
       time,
       type: 'habit',
       habitId: habit.id,
       title: habit.name,
-      completed: doneToday,
-      dateKey: today
+      completed: isDone
     });
 
+    state.selectedDateKey = targetDate;
     saveState();
     renderAll();
     showToast(`Hábito "${habit.name}" agendado às ${time}!`);
@@ -407,23 +498,24 @@ function addAgendaItem({ time, type, title, habitId }) {
   } else {
     const clean = (title || '').trim();
     if (!clean) {
-      showToast('Digite o título da tarefa.');
+      showToast('Digite a descrição do compromisso.');
       return false;
     }
 
     state.agenda.push({
       id: 'ag_' + Date.now() + '_' + Math.random().toString(36).slice(2, 5),
+      dateKey: targetDate,
       time,
       type: 'task',
       habitId: null,
       title: clean,
-      completed: false,
-      dateKey: today
+      completed: false
     });
 
+    state.selectedDateKey = targetDate;
     saveState();
     renderAll();
-    showToast(`Tarefa agendada para ${time}!`);
+    showToast(`Compromisso agendado para ${time}!`);
     return true;
   }
 }
@@ -433,7 +525,7 @@ function toggleAgendaItem(itemId) {
   if (!item) return;
 
   if (item.type === 'habit' && item.habitId) {
-    toggleStartHabitToday(item.habitId);
+    toggleStartHabitOnDate(item.habitId, item.dateKey || getTodayKey());
   } else {
     item.completed = !item.completed;
     saveState();
@@ -479,6 +571,7 @@ function buildMilestoneHtml(currentDays) {
   `;
 }
 
+// HOME 1: COMEÇAR HÁBITO
 function renderHomeStart() {
   const today = getTodayKey();
   const startHabits = state.habits.filter(h => h.category === 'start');
@@ -494,7 +587,7 @@ function renderHomeStart() {
 
   const listEl = document.getElementById('startHabitsList');
   if (startHabits.length === 0) {
-    listEl.innerHTML = `<div class="empty-state">Você ainda não cadastrou hábitos para começar.<br>Toque em <strong>+ Novo Hábito</strong>!</div>`;
+    listEl.innerHTML = `<div class="empty-state">Nenhum hábito em construção.<br>Toque em <strong>+ Hábito</strong> para começar!</div>`;
     return;
   }
 
@@ -517,10 +610,10 @@ function renderHomeStart() {
           </div>
           <div class="card-actions">
             ${habit.suggestedTime ? `
-              <button class="icon-btn" onclick="quickScheduleHabit('${habit.id}')" title="Alocar na Agenda às ${habit.suggestedTime}">📅</button>
+              <button class="icon-btn" type="button" onclick="quickScheduleHabit('${habit.id}')" title="Agendar hoje às ${habit.suggestedTime}">📅</button>
             ` : ''}
-            <button class="icon-btn" onclick="openEditHabitModal('${habit.id}')" title="Editar">✎</button>
-            <button class="icon-btn" onclick="deleteHabit('${habit.id}')" title="Excluir">🗑</button>
+            <button class="icon-btn" type="button" onclick="openEditHabitModal('${habit.id}')" title="Editar">✎</button>
+            <button class="icon-btn" type="button" onclick="deleteHabit('${habit.id}')" title="Excluir">🗑</button>
           </div>
         </div>
 
@@ -533,7 +626,7 @@ function renderHomeStart() {
             </div>
           </div>
 
-          <button class="btn-checkin-mobile ${isCheckedToday ? 'checked-today' : ''}" onclick="toggleStartHabitToday('${habit.id}')">
+          <button type="button" class="btn-checkin-mobile ${isCheckedToday ? 'checked-today' : ''}" onclick="toggleStartHabitOnDate('${habit.id}')">
             ${isCheckedToday ? '✓ Feito Hoje' : 'Check-in'}
           </button>
         </div>
@@ -544,6 +637,7 @@ function renderHomeStart() {
   }).join('');
 }
 
+// HOME 2: DEIXAR HÁBITO
 function renderHomeStop() {
   const stopHabits = state.habits.filter(h => h.category === 'stop');
   document.getElementById('stopHeroStat').textContent = `${stopHabits.length} ${stopHabits.length === 1 ? 'hábito monitorado' : 'hábitos monitorados'}`;
@@ -559,7 +653,7 @@ function renderHomeStop() {
 
   const listEl = document.getElementById('stopHabitsList');
   if (stopHabits.length === 0) {
-    listEl.innerHTML = `<div class="empty-state">Nenhum hábito em modo abstinência.<br>Toque em <strong>+ Parar Hábito</strong> para iniciar o contador!</div>`;
+    listEl.innerHTML = `<div class="empty-state">Nenhum hábito em modo abstinência.<br>Toque em <strong>+ Parar Hábito</strong> para iniciar!</div>`;
     return;
   }
 
@@ -584,8 +678,8 @@ function renderHomeStop() {
             </div>
           </div>
           <div class="card-actions">
-            <button class="icon-btn" onclick="openEditHabitModal('${habit.id}')" title="Editar">✎</button>
-            <button class="icon-btn" onclick="deleteHabit('${habit.id}')" title="Excluir">🗑</button>
+            <button class="icon-btn" type="button" onclick="openEditHabitModal('${habit.id}')" title="Editar">✎</button>
+            <button class="icon-btn" type="button" onclick="deleteHabit('${habit.id}')" title="Excluir">🗑</button>
           </div>
         </div>
 
@@ -598,7 +692,7 @@ function renderHomeStop() {
             </div>
           </div>
 
-          <button class="btn-relapse-mobile" onclick="openRelapseModal('${habit.id}')">
+          <button type="button" class="btn-relapse-mobile" onclick="openRelapseModal('${habit.id}')">
             ↺ Recaída
           </button>
         </div>
@@ -609,50 +703,167 @@ function renderHomeStop() {
   }).join('');
 }
 
+// HOME 3: AGENDA (CALENDÁRIO MENSAL & SEMANAL)
 function renderHomeAgenda() {
-  const sorted = [...state.agenda].sort((a, b) => a.time.localeCompare(b.time));
-  const total = sorted.length;
-  const done = sorted.filter(a => a.completed).length;
-  const pct = total > 0 ? Math.round((done / total) * 100) : 0;
+  const todayKey = getTodayKey();
+  const cursor = state.calendarCursorDate;
+  const year = cursor.getFullYear();
+  const month = cursor.getMonth();
 
-  document.getElementById('agendaHeroStat').textContent = `${done} de ${total} concluídos`;
-  document.getElementById('agendaHeroPct').textContent = `${pct}%`;
-  document.getElementById('agendaHeroFill').style.width = `${pct}%`;
-  document.getElementById('navBadgeAgenda').textContent = total - done;
+  // Badge na barra inferior mostra compromissos pendentes de hoje
+  const pendingToday = state.agenda.filter(a => a.dateKey === todayKey && !a.completed).length;
+  document.getElementById('navBadgeAgenda').textContent = pendingToday;
 
-  const filtered = sorted.filter(item => {
-    if (state.agendaFilter === 'pending') return !item.completed;
-    if (state.agendaFilter === 'completed') return item.completed;
-    if (state.agendaFilter === 'habits') return item.type === 'habit';
-    return true;
-  });
+  // Título do Mês/Ano no topo do calendário
+  const monthLabel = cursor.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
+  document.getElementById('calendarTitleLabel').textContent = monthLabel;
 
-  const listEl = document.getElementById('agendaItemsList');
-  if (filtered.length === 0) {
-    listEl.innerHTML = `<div class="empty-state">Nenhum item encontrado para este filtro na agenda de hoje.</div>`;
-    return;
+  // Construir células do Calendário (Mês completo ou Semana de 7 dias)
+  const gridEl = document.getElementById('calendarGrid');
+  let cells = [];
+
+  if (state.calendarMode === 'month') {
+    const firstDayOfMonth = new Date(year, month, 1);
+    const startWeekday = firstDayOfMonth.getDay(); // 0 (Dom) a 6 (Sáb)
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+
+    const prevMonthDays = new Date(year, month, 0).getDate();
+    for (let i = startWeekday - 1; i >= 0; i--) {
+      const d = new Date(year, month - 1, prevMonthDays - i);
+      cells.push({ dateObj: d, dateKey: getDateKey(d), otherMonth: true });
+    }
+
+    for (let day = 1; day <= daysInMonth; day++) {
+      const d = new Date(year, month, day);
+      cells.push({ dateObj: d, dateKey: getDateKey(d), otherMonth: false });
+    }
+
+    const remaining = (7 - (cells.length % 7)) % 7;
+    for (let i = 1; i <= remaining; i++) {
+      const d = new Date(year, month + 1, i);
+      cells.push({ dateObj: d, dateKey: getDateKey(d), otherMonth: true });
+    }
+  } else {
+    // Modo Semana: domingo a sábado da semana do cursor
+    const startOfWeek = new Date(cursor);
+    startOfWeek.setDate(cursor.getDate() - cursor.getDay());
+    for (let i = 0; i < 7; i++) {
+      const d = new Date(startOfWeek);
+      d.setDate(startOfWeek.getDate() + i);
+      cells.push({ dateObj: d, dateKey: getDateKey(d), otherMonth: d.getMonth() !== month });
+    }
   }
 
-  listEl.innerHTML = filtered.map(item => `
-    <div class="agenda-card-mobile ${item.type === 'habit' ? 'item-habit' : ''} ${item.completed ? 'completed' : ''}">
-      <div class="agenda-left" onclick="toggleAgendaItem('${item.id}')">
-        <span class="custom-checkbox">${item.completed ? '✓' : ''}</span>
-        <div class="agenda-item-info">
-          <div class="agenda-item-top">
-            <span class="agenda-time-tag">🕒 ${item.time}</span>
-            ${item.type === 'habit' ? `<span class="habit-link-badge">🔥 Hábito (+Streak)</span>` : ''}
-          </div>
-          <span class="item-title">${escapeHtml(item.title)}</span>
+  gridEl.innerHTML = cells.map(cell => {
+    const isToday = cell.dateKey === todayKey;
+    const isSelected = cell.dateKey === state.selectedDateKey;
+    const dayItems = state.agenda.filter(a => a.dateKey === cell.dateKey);
+
+    const hasTask = dayItems.some(i => i.type === 'task' && !i.completed);
+    const hasHabit = dayItems.some(i => i.type === 'habit' && !i.completed);
+    const hasDone = dayItems.some(i => i.completed) || state.habits.some(
+      h => h.category === 'start' && Array.isArray(h.completedDates) && h.completedDates.includes(cell.dateKey)
+    );
+
+    return `
+      <button
+        type="button"
+        class="cal-day ${cell.otherMonth ? 'other-month' : ''} ${isToday ? 'is-today' : ''} ${isSelected ? 'is-selected' : ''}"
+        onclick="selectCalendarDate('${cell.dateKey}')"
+      >
+        <span class="cal-day-num">${cell.dateObj.getDate()}</span>
+        <div class="cal-dots">
+          ${hasTask ? '<i class="dot dot-task"></i>' : ''}
+          ${hasHabit ? '<i class="dot dot-habit"></i>' : ''}
+          ${hasDone ? '<i class="dot dot-done"></i>' : ''}
         </div>
+      </button>
+    `;
+  }).join('');
+
+  // Atualizar Banner do Dia Selecionado
+  document.getElementById('selectedDayRelativeTag').textContent = getRelativeDayTag(state.selectedDateKey);
+  document.getElementById('selectedDayTitle').textContent = formatDayFullLabel(state.selectedDateKey);
+
+  // Listar compromissos do Dia Selecionado
+  const dayItems = state.agenda
+    .filter(a => a.dateKey === state.selectedDateKey)
+    .sort((a, b) => a.time.localeCompare(b.time));
+
+  const dayListEl = document.getElementById('agendaDayItemsList');
+  if (dayItems.length === 0) {
+    dayListEl.innerHTML = `<div class="empty-state">Nenhum compromisso agendado para esta data.<br>Toque em <strong>+ Agendar</strong> para incluir!</div>`;
+  } else {
+    dayListEl.innerHTML = dayItems.map(item => `
+      <div class="agenda-card-mobile ${item.type === 'habit' ? 'item-habit' : ''} ${item.completed ? 'completed' : ''}">
+        <div class="agenda-left" onclick="toggleAgendaItem('${item.id}')">
+          <span class="custom-checkbox">${item.completed ? '✓' : ''}</span>
+          <div class="agenda-item-info">
+            <div class="agenda-item-top">
+              <span class="agenda-time-tag">🕒 ${item.time}</span>
+              ${item.type === 'habit' ? `<span class="habit-link-badge">🔥 Hábito</span>` : `<span class="sub-badge">Compromisso</span>`}
+            </div>
+            <span class="item-title">${escapeHtml(item.title)}</span>
+          </div>
+        </div>
+        <button class="icon-btn" type="button" onclick="removeAgendaItem('${item.id}')" title="Remover">✕</button>
       </div>
-      <button class="icon-btn" onclick="removeAgendaItem('${item.id}')" title="Remover">✕</button>
-    </div>
-  `).join('');
+    `).join('');
+  }
+
+  // Renderizar Resumo da Semana (Dom a Sáb da semana selecionada)
+  const selDate = parseDateKey(state.selectedDateKey);
+  const weekStart = new Date(selDate);
+  weekStart.setDate(selDate.getDate() - selDate.getDay());
+
+  let weekRowsHtml = '';
+  for (let i = 0; i < 7; i++) {
+    const wd = new Date(weekStart);
+    wd.setDate(weekStart.getDate() + i);
+    const wKey = getDateKey(wd);
+    const wItems = state.agenda
+      .filter(a => a.dateKey === wKey)
+      .sort((a, b) => a.time.localeCompare(b.time));
+
+    const shortWeekday = wd.toLocaleDateString('pt-BR', { weekday: 'short' }).replace('.', '');
+    const dayNum = String(wd.getDate()).padStart(2, '0');
+    const summaryText = wItems.length === 0
+      ? 'Dia livre — sem compromissos'
+      : wItems.map(x => `${x.time} ${x.title}`).join(' • ');
+
+    weekRowsHtml += `
+      <div class="week-day-row ${wKey === state.selectedDateKey ? 'active-week-day' : ''}" onclick="selectCalendarDate('${wKey}')">
+        <div class="week-day-left">
+          <div class="week-day-badge">
+            <span>${shortWeekday}</span>
+            <strong>${dayNum}</strong>
+          </div>
+          <div class="week-day-details">
+            <h4>${wItems.length} ${wItems.length === 1 ? 'compromisso' : 'compromissos'}</h4>
+            <p>${escapeHtml(summaryText)}</p>
+          </div>
+        </div>
+        <span class="time-badge">${wKey === todayKey ? 'Hoje' : 'Ver'}</span>
+      </div>
+    `;
+  }
+  document.getElementById('weekSummaryContainer').innerHTML = weekRowsHtml;
 }
 
+// HOME 4: HORÁRIOS DO DIA (Time-blocking 06:00 às 23:00)
 function renderHomeHours() {
   const container = document.getElementById('timelineContainer');
+  const todayKey = getTodayKey();
+  const isTodaySelected = state.selectedDateKey === todayKey;
   const currentHourNum = new Date().getHours();
+
+  const selDateObj = parseDateKey(state.selectedDateKey);
+  document.getElementById('hoursDayBadge').textContent = getRelativeDayTag(state.selectedDateKey);
+  document.getElementById('hoursDayLabel').textContent = selDateObj.toLocaleDateString('pt-BR', {
+    weekday: 'short',
+    day: '2-digit',
+    month: 'short'
+  });
 
   const periods = [
     { id: 'morning', label: '☀️ Manhã (06:00 – 11:00)', min: 6, max: 11 },
@@ -669,15 +880,20 @@ function renderHomeHours() {
 
     for (let h = period.min; h <= period.max; h++) {
       const timeStr = `${String(h).padStart(2, '0')}:00`;
-      const slotItems = state.agenda.filter(a => a.time === timeStr);
-      const isNow = h === currentHourNum;
+      const slotItems = state.agenda.filter(
+        a => a.dateKey === state.selectedDateKey && a.time === timeStr
+      );
+      const isNow = isTodaySelected && h === currentHourNum;
 
       const itemsHtml = slotItems.length === 0
-        ? `<button type="button" class="slot-empty-btn" onclick="openScheduleModal('${timeStr}')">Horário livre — toque para agendar</button>`
+        ? `<button type="button" class="slot-empty-btn" onclick="openScheduleModal('${timeStr}', '${state.selectedDateKey}')">Livre — tocar p/ agendar</button>`
         : slotItems.map(item => `
-            <div class="slot-mini-item ${item.type === 'habit' ? 'item-habit' : ''} ${item.completed ? 'completed' : ''}" onclick="toggleAgendaItem('${item.id}')">
-              <span>${item.completed ? '✓ ' : '○ '}${escapeHtml(item.title)}</span>
-              ${item.type === 'habit' ? `<span class="habit-link-badge">🔥</span>` : ''}
+            <div class="slot-mini-item ${item.type === 'habit' ? 'item-habit' : ''} ${item.completed ? 'completed' : ''}">
+              <div class="slot-mini-left" onclick="toggleAgendaItem('${item.id}')">
+                <span>${item.completed ? '✓' : '○'}</span>
+                <span class="slot-mini-title">${escapeHtml(item.title)}</span>
+              </div>
+              <button class="icon-btn" type="button" style="width:20px;height:20px;font-size:0.7rem;" onclick="removeAgendaItem('${item.id}')" title="Remover">✕</button>
             </div>
           `).join('');
 
@@ -688,7 +904,7 @@ function renderHomeHours() {
             ${isNow ? `<span class="now-pill">AGORA</span>` : ''}
           </div>
           <div class="slot-items">${itemsHtml}</div>
-          <button type="button" class="slot-add-btn" onclick="openScheduleModal('${timeStr}')" title="Adicionar às ${timeStr}">+</button>
+          <button type="button" class="slot-add-btn" onclick="openScheduleModal('${timeStr}', '${state.selectedDateKey}')" title="Agendar às ${timeStr}">+</button>
         </div>
       `;
     }
@@ -713,7 +929,7 @@ function renderScheduleHabitSelect() {
 function renderAll() {
   syncAgendaWithHabits();
   updateStatusBarClock();
-  document.getElementById('currentDateDisplay').textContent = formatShortHeaderDate(new Date());
+  document.getElementById('currentDateDisplay').textContent = `📅 ${formatShortHeaderDate(new Date())}`;
   renderHomeStart();
   renderHomeStop();
   renderHomeAgenda();
@@ -784,10 +1000,12 @@ function closeHabitModal() {
   document.getElementById('habitModal').classList.add('hidden');
 }
 
-function openScheduleModal(prefillTime = null) {
+function openScheduleModal(prefillTime = null, prefillDateKey = null) {
   const currentH = Math.min(23, Math.max(6, new Date().getHours()));
   const defaultTime = prefillTime || `${String(currentH).padStart(2, '0')}:00`;
+  const defaultDate = prefillDateKey || state.selectedDateKey || getTodayKey();
 
+  document.getElementById('agendaDateInput').value = defaultDate;
   document.getElementById('agendaTime').value = defaultTime;
   document.querySelector('input[name="agendaItemType"][value="task"]').checked = true;
   document.getElementById('taskTitleGroup').classList.remove('hidden');
@@ -806,6 +1024,7 @@ function quickScheduleHabit(habitId) {
   const habit = state.habits.find(h => h.id === habitId);
   if (!habit || !habit.suggestedTime) return;
   addAgendaItem({
+    dateKey: getTodayKey(),
     time: habit.suggestedTime,
     type: 'habit',
     habitId: habit.id,
@@ -836,7 +1055,6 @@ document.addEventListener('DOMContentLoaded', () => {
   loadState();
   renderAll();
 
-  // Registrar Service Worker para PWA Mobile
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('./sw.js').catch(() => {});
   }
@@ -846,20 +1064,18 @@ document.addEventListener('DOMContentLoaded', () => {
     btn.addEventListener('click', () => switchScreen(btn.dataset.target));
   });
 
-  // Botão "+" Flutuante (FAB) e Topo: adapta-se à Home ativa!
-  const handleContextualAdd = () => {
+  // Botão "+ Novo" sempre visível no Header Superior (adapta-se à aba ativa)
+  document.getElementById('btnQuickActionTop').addEventListener('click', () => {
     if (state.activeScreen === 'start') {
       openNewHabitModal('start');
     } else if (state.activeScreen === 'stop') {
       openNewHabitModal('stop');
     } else {
-      openScheduleModal();
+      openScheduleModal(null, state.selectedDateKey);
     }
-  };
-  document.getElementById('fabMainAction').addEventListener('click', handleContextualAdd);
-  document.getElementById('btnQuickActionTop').addEventListener('click', handleContextualAdd);
+  });
 
-  // Botões da barra superior Desktop (Alternar Moldura / Restaurar Demo)
+  // Botões Desktop Preview
   document.getElementById('btnToggleFrame').addEventListener('click', () => {
     document.getElementById('phoneFrame').classList.toggle('expanded-frame');
   });
@@ -868,6 +1084,55 @@ document.addEventListener('DOMContentLoaded', () => {
     createDemoData();
     renderAll();
     showToast('Dados de demonstração restaurados!');
+  });
+
+  // Controles do Calendário na aba Agenda
+  document.querySelectorAll('.cal-mode-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.cal-mode-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      state.calendarMode = btn.dataset.calmode;
+      renderHomeAgenda();
+    });
+  });
+
+  document.getElementById('btnCalPrev').addEventListener('click', () => {
+    const d = new Date(state.calendarCursorDate);
+    if (state.calendarMode === 'month') {
+      d.setMonth(d.getMonth() - 1);
+    } else {
+      d.setDate(d.getDate() - 7);
+    }
+    state.calendarCursorDate = d;
+    renderHomeAgenda();
+  });
+
+  document.getElementById('btnCalNext').addEventListener('click', () => {
+    const d = new Date(state.calendarCursorDate);
+    if (state.calendarMode === 'month') {
+      d.setMonth(d.getMonth() + 1);
+    } else {
+      d.setDate(d.getDate() + 7);
+    }
+    state.calendarCursorDate = d;
+    renderHomeAgenda();
+  });
+
+  document.getElementById('btnCalToday').addEventListener('click', () => {
+    state.selectedDateKey = getTodayKey();
+    state.calendarCursorDate = new Date();
+    renderAll();
+  });
+
+  // Controles de Data na aba Horários
+  document.getElementById('btnHoursPrevDay').addEventListener('click', () => {
+    selectCalendarDate(shiftDateKey(state.selectedDateKey, -1));
+  });
+  document.getElementById('btnHoursNextDay').addEventListener('click', () => {
+    selectCalendarDate(shiftDateKey(state.selectedDateKey, 1));
+  });
+  document.getElementById('btnHoursToday').addEventListener('click', () => {
+    selectCalendarDate(getTodayKey());
   });
 
   // Modal de Hábito
@@ -925,12 +1190,12 @@ document.addEventListener('DOMContentLoaded', () => {
       if (category === 'start' && suggestedTime && autoSchedule) {
         state.agenda.push({
           id: 'ag_' + Date.now(),
+          dateKey: getTodayKey(),
           time: suggestedTime,
           type: 'habit',
           habitId: newHabit.id,
           title: newHabit.name,
-          completed: false,
-          dateKey: getTodayKey()
+          completed: false
         });
       }
 
@@ -943,7 +1208,7 @@ document.addEventListener('DOMContentLoaded', () => {
     renderAll();
   });
 
-  // Modal de Agendamento (Agenda & Horários)
+  // Modal de Agendamento
   document.getElementById('btnCloseScheduleModal').addEventListener('click', closeScheduleModal);
   document.getElementById('btnCancelScheduleModal').addEventListener('click', closeScheduleModal);
 
@@ -957,12 +1222,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
   document.getElementById('scheduleForm').addEventListener('submit', e => {
     e.preventDefault();
+    const dateKey = document.getElementById('agendaDateInput').value || state.selectedDateKey;
     const time = document.getElementById('agendaTime').value;
     const type = document.querySelector('input[name="agendaItemType"]:checked').value;
     const title = document.getElementById('agendaTaskTitle').value;
     const habitId = document.getElementById('agendaHabitId').value;
 
-    const ok = addAgendaItem({ time, type, title, habitId });
+    const ok = addAgendaItem({ dateKey, time, type, title, habitId });
     if (ok) closeScheduleModal();
   });
 
@@ -972,16 +1238,6 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('relapseModal').classList.add('hidden');
   });
   document.getElementById('btnConfirmRelapse').addEventListener('click', confirmRelapseReset);
-
-  // Filtros da Home 3 (Agenda)
-  document.querySelectorAll('.agenda-filter-bar .filter-chip').forEach(btn => {
-    btn.addEventListener('click', () => {
-      document.querySelectorAll('.agenda-filter-bar .filter-chip').forEach(b => b.classList.remove('active'));
-      btn.classList.add('active');
-      state.agendaFilter = btn.dataset.agfilter;
-      renderHomeAgenda();
-    });
-  });
 
   // Filtros de Período da Home 4 (Horários)
   document.querySelectorAll('.period-tabs .period-tab').forEach(btn => {
@@ -993,7 +1249,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   });
 
-  // Atualização automática a cada 20s (Relógio e Contadores de Abstinência)
+  // Atualização em tempo real
   setInterval(() => {
     updateStatusBarClock();
     renderHomeStop();
